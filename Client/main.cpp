@@ -109,7 +109,7 @@ int main()
             answer = client.SendToServer();
         } 
         else if (command == "SEND_COMM") {
-
+            //coming soon
         }
         else if (command == "END") { break; }
         else { cout << "unknown command" << endl; }
