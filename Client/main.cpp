@@ -1,91 +1,124 @@
 #include <iostream>
 #include <fstream>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
+
 #include <string.h>
 #include <string>
 
-int main() {
-    std::cout << "Hi there, i'm CLIENT\n";
+#include <memory>
 
-    // Create a socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
-        return 1;
-    } 
+using namespace std;
 
-    // Create a hint structure for the server 
-    int port = 54000;
-    std::string ip_address = "127.0.0.1";
-    
-    sockaddr_in hint;
-    hint.sin_family = AF_INET;
-    hint.sin_port = htons(port);
-    inet_pton(AF_INET, ip_address.c_str(), &hint.sin_addr);
-
-    // Connect to the server on the socket
-    int connect_res = connect(sock, (sockaddr*)&hint, sizeof(hint));
-    if (connect_res == -1) {
-        return 1;
+class Client {
+public:
+    Client() 
+    {
+        // Create a socket
+        sock = CreateSocket();
+        
+        // Create a hint structure for the server
+        port = 54000;
+        ip_address = "127.0.0.1";
+        hint.sin_family = AF_INET;
+        hint.sin_port = htons(port);
+        inet_pton(AF_INET, ip_address.c_str(), &hint.sin_addr);
     }
 
-    // While loop:
-    char buf[4096];
-    std::string file_input;
+    int ConnectToServer() { return connect(sock, (sockaddr *)&hint, sizeof(hint));}
+    int GetSocket() { return sock; }
+    int GetPort() { return port; }
+    string GetIPAddress() { return ip_address; }
+    string SendToServer() 
+    {
+        ifstream file = OpenFile();
+        return ReadSendFile(file);
+    }
 
-    // /home/qzarov/dif_tmp_stuff/testfile.txt
 
-    while(file_input != "END") {
-        // Enter lines of text
-        std::cout << "Your file:" << std::endl;
-        //getline(file, user_input);
+private:
+    int CreateSocket() { return socket(AF_INET, SOCK_STREAM, 0); }
+    ifstream OpenFile() 
+    {
+        string file_name;
+        ifstream file;
 
-        std::string file_name;
-        std::ifstream file;
-        bool is_file_open = false;
+        while (!file.is_open()) {
+            cout << "Enter a filename: ";
+            cin >> file_name;
+            file = ifstream(file_name);
 
-        // File opening
-        while (!is_file_open) {
-            std::cout << "Enter a filename: ";
-            std::cin >> file_name;
-            file = std::ifstream(file_name);       
-        
             if (file.is_open()) {
-                std::cout << "file " << file_name << " opened" << std::endl;
-                is_file_open = true;
-            } else {
-                std::cout << "filename " << file_name << " incorrect" << std::endl;
-                is_file_open = false;
+                cout << "file " << file_name << " opened" << endl;
             }
-        }
+            else {
+                cout << "filename " << file_name << " incorrect" << endl;
+            }
+        }   
 
-        // Sending file
+        return file;
+    }
+    
+    string ReadSendFile (ifstream& file) 
+    {
+        string answer;
+        string file_input;
         while (file) {
-            getline(file, file_input); 
-            std::cout << "68, inp: " << file_input << std::endl;
+            getline(file, file_input);
+
             // Send to server
             int send_res = send(sock, file_input.c_str(), file_input.size() + 1, 0);
             if (send_res == -1) {
-                std::cout << "Could not send to server" << std::endl;
+                cout << "Could not send to server" << endl;
                 break;
             }
-            
-            // Wait for response
-            memset(buf, 0, 4096);
-            int bytes_received = recv(sock, buf, 4096, 0);
-
-            // Display response
-            std::cout << "SERVER>" << std::string(buf, bytes_received) << std::endl;
         }
-    } 
 
-    std::cout << "Bye!" << std::endl;
-    
+        return answer;
+    }
+
+    char buf[4096];
+    int port;
+    int sock;
+    string ip_address;
+    sockaddr_in hint;
+};
+
+int main()
+{
+    Client client;
+    cout << "Hi there, i'm CLIENT\n";
+
+    // Connect to the server on the socket
+    if (client.ConnectToServer() == -1) { return 1; }
+
+    // /home/qzarov/dif_tmp_stuff/testfile.txt
+
+    cout << "Commands: SEND_FILE, SEND_COMM, END" << endl;
+    string command = "DEF_COM";
+
+    string answer;
+    while (true) {
+        cout << "Enter command: ";
+        cin >> command;
+        if (command == "SEND_FILE") {
+            answer = client.SendToServer();
+        } 
+        else if (command == "SEND_COMM") {
+
+        }
+        else if (command == "END") { break; }
+        else { cout << "unknown command" << endl; }
+    }
+
+    cout << "Bye!" << endl;
+
     // Close socket
-    close(sock);
+    close(client.GetSocket());
 
     return 0;
 }
